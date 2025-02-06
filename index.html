@@ -73,12 +73,12 @@
     <script>
         // استبدل ببيانات Firebase الخاصة بك
         const firebaseConfig = {
-  apiKey: "AIzaSyDFgfBukAKFEk2vKGQJTgcDHO5DxBqhWjs",
-  authDomain: "chees-v2.firebaseapp.com",
-  projectId: "chees-v2",
-  storageBucket: "chees-v2.firebasestorage.app",
-  messagingSenderId: "1065140905576",
-  appId: "1:1065140905576:web:68b4cd2575e76fb623fddd"
+            apiKey: "AIzaSyABCD...",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-bucket.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcd1234"
         };
 
         firebase.initializeApp(firebaseConfig);
@@ -119,7 +119,10 @@
         }
 
         async function handleClick(row, col) {
-            if (!playerColor || playerColor !== gameRef.currentPlayer) return;
+            if (!playerColor || playerColor !== gameRef.currentPlayer) {
+                alert("انتظر دورك!");
+                return;
+            }
 
             const piece = boardState[`${row},${col}`];
             
@@ -141,7 +144,8 @@
             const piece = boardState[`${fromRow},${fromCol}`];
             const target = boardState[`${toRow},${toCol}`];
             
-            // حركات البيادق
+            if (target && getPieceColor(target) === playerColor) return false;
+
             if (piece === '♙') {
                 const allowedForward = (fromRow - toRow === 1) && (fromCol === toCol) && !target;
                 const allowedCapture = (fromRow - toRow === 1) && Math.abs(fromCol - toCol) === 1 && target;
@@ -154,16 +158,18 @@
                 return allowedForward || allowedCapture;
             }
             
-            return true; // حركات القطع الأخرى (مؤقتة)
+            return true;
         }
 
         async function makeMove(fromRow, fromCol, toRow, toCol) {
             boardState[`${toRow},${toCol}`] = boardState[`${fromRow},${fromCol}`];
             boardState[`${fromRow},${fromCol}`] = '';
             
-            await gameRef.ref.update({
+            const newPlayer = playerColor === 'white' ? 'black' : 'white';
+            
+            await gameRef.update({
                 board: boardState,
-                currentPlayer: playerColor === 'white' ? 'black' : 'white'
+                currentPlayer: newPlayer
             });
             
             checkWinCondition();
@@ -185,7 +191,6 @@
 
         async function joinGame() {
             try {
-                // تسجيل الدخول كضيف
                 await auth.signInAnonymously();
                 
                 const gameId = document.getElementById('gameId').value;
@@ -193,19 +198,20 @@
                 
                 gameRef = db.collection('games').doc(gameId);
                 
-                // تحديد لون اللاعب
                 const players = await gameRef.collection('players').get();
-                if (players.size >= 2) return alert('اللعبة ممتلئة!');
+                if (players.size >= 2) {
+                    alert('اللعبة ممتلئة!');
+                    return;
+                }
                 
                 playerColor = players.size === 0 ? 'white' : 'black';
                 document.getElementById('playerColor').textContent = playerColor;
+                localStorage.setItem('playerColor', playerColor);
                 
-                // تسجيل اللاعب
                 await gameRef.collection('players').doc(playerColor).set({
-                    joinedAt: new Date()
+                    joinedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                // تحديث الحالة
                 gameRef.onSnapshot(async doc => {
                     const data = doc.data();
                     if (data) {
@@ -215,14 +221,12 @@
                     }
                 });
 
-                // تهيئة اللعبة الجديدة
                 if (players.size === 0) {
                     initialBoard.forEach((row, i) => {
                         row.forEach((piece, j) => {
                             boardState[`${i},${j}`] = piece;
                         });
                     });
-                    
                     await gameRef.set({
                         board: boardState,
                         currentPlayer: 'white'
@@ -234,6 +238,13 @@
                 alert(`خطأ: ${error.message}`);
             }
         }
+
+        window.onload = () => {
+            if (localStorage.getItem('playerColor')) {
+                playerColor = localStorage.getItem('playerColor');
+                document.getElementById('playerColor').textContent = playerColor;
+            }
+        };
     </script>
 </body>
 </html>
