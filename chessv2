@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>شطرنج التحدي - إفناء القطع</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            gap: 0;
+            border: 2px solid #333;
+            background: white;
+            margin: 20px;
+        }
+
+        .cell {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .light {
+            background: #f0d9b5;
+        }
+
+        .dark {
+            background: #b58863;
+        }
+
+        .selected {
+            background: #7ba05b !important;
+        }
+
+        .valid {
+            background: #baca44 !important;
+        }
+
+        #controls {
+            margin: 20px;
+            text-align: center;
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <input type="text" id="gameId" placeholder="ادخل اسم اللعبة">
+        <button onclick="joinGame()">انضم للعبة</button>
+        <div id="status">اللاعب الحالي: -</div>
+    </div>
+    <div id="board"></div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+    <script>
+        // إعداد Firebase (استبدل بالبيانات الخاصة بك)
+        const firebaseConfig = {
+  apiKey: "AIzaSyDFgfBukAKFEk2vKGQJTgcDHO5DxBqhWjs",
+  authDomain: "chees-v2.firebaseapp.com",
+  projectId: "chees-v2",
+  storageBucket: "chees-v2.firebasestorage.app",
+  messagingSenderId: "1065140905576",
+  appId: "1:1065140905576:web:68b4cd2575e76fb623fddd"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let gameRef;
+        let currentPlayer = 'white';
+        let playerColor;
+        let selectedPiece = null;
+
+        // تهيئة اللوحة
+        const initialBoard = [
+            ['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜'],
+            ['♟', '♟', '♟', '♟', '♟', '♟', '♟', '♟'],
+            Array(8).fill(''),
+            Array(8).fill(''),
+            Array(8).fill(''),
+            Array(8).fill(''),
+            ['♙', '♙', '♙', '♙', '♙', '♙', '♙', '♙'],
+            ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖']
+        ];
+
+        function createBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            initialBoard.forEach((row, i) => {
+                row.forEach((piece, j) => {
+                    const cell = document.createElement('div');
+                    cell.className = `cell ${(i + j) % 2 === 0 ? 'light' : 'dark'}`;
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.textContent = piece;
+                    cell.onclick = () => handleClick(i, j);
+                    board.appendChild(cell);
+                });
+            });
+        }
+
+        function handleClick(row, col) {
+            if (!gameRef || playerColor !== currentPlayer) return;
+
+            const cell = initialBoard[row][col];
+            
+            if (selectedPiece) {
+                if (isValidMove(selectedPiece.row, selectedPiece.col, row, col)) {
+                    movePiece(selectedPiece.row, selectedPiece.col, row, col);
+                    selectedPiece = null;
+                    updateBoard();
+                }
+            } else if (cell && getPieceColor(cell) === playerColor) {
+                selectedPiece = { row, col };
+                showValidMoves(row, col);
+            }
+        }
+
+        function isValidMove(fromRow, fromCol, toRow, toCol) {
+            const piece = initialBoard[fromRow][fromCol];
+            const target = initialBoard[toRow][toCol];
+            
+            // حركة أساسية للبيادق
+            if (piece === '♙' && fromRow === 6 && toRow === 4 && fromCol === toCol && !target) return true;
+            if (piece === '♟' && fromRow === 1 && toRow === 3 && fromCol === toCol && !target) return true;
+            
+            return !!target; // يسمح بأكل أي قطعة (تعديل حسب القواعد المطلوبة)
+        }
+
+        function movePiece(fromRow, fromCol, toRow, toCol) {
+            initialBoard[toRow][toCol] = initialBoard[fromRow][fromCol];
+            initialBoard[fromRow][fromCol] = '';
+            currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
+            checkWinCondition();
+            saveGameState();
+        }
+
+        function checkWinCondition() {
+            let white = 0, black = 0;
+            initialBoard.forEach(row => {
+                row.forEach(piece => {
+                    if (piece) getPieceColor(piece) === 'white' ? white++ : black++;
+                });
+            });
+            
+            if (white === 0) alert('الأسود فاز!');
+            if (black === 0) alert('الأبيض فاز!');
+        }
+
+        function getPieceColor(piece) {
+            return piece === piece.toLowerCase() ? 'black' : 'white';
+        }
+
+        function joinGame() {
+            const gameId = document.getElementById('gameId').value;
+            if (!gameId) return alert('ادخل اسم اللعبة!');
+            
+            gameRef = db.collection('games').doc(gameId);
+            playerColor = Math.random() < 0.5 ? 'white' : 'black';
+            
+            gameRef.onSnapshot(doc => {
+                const data = doc.data();
+                if (data) {
+                    currentPlayer = data.currentPlayer;
+                    initialBoard.forEach((row, i) => {
+                        row.forEach((_, j) => {
+                            initialBoard[i][j] = data.board[i][j];
+                        });
+                    });
+                    updateBoard();
+                    document.getElementById('status').textContent = `اللاعب الحالي: ${currentPlayer}`;
+                }
+            });
+
+            gameRef.get().then(doc => {
+                if (!doc.exists) {
+                    gameRef.set({
+                        board: initialBoard,
+                        currentPlayer: 'white'
+                    });
+                }
+            });
+            
+            createBoard();
+        }
+
+        function saveGameState() {
+            gameRef.update({
+                board: initialBoard,
+                currentPlayer: currentPlayer
+            });
+        }
+
+        function updateBoard() {
+            document.querySelectorAll('.cell').forEach(cell => {
+                const row = cell.dataset.row;
+                const col = cell.dataset.col;
+                cell.textContent = initialBoard[row][col];
+                cell.className = cell.className.replace(' selected valid', '');
+            });
+        }
+
+        function showValidMoves(row, col) {
+            document.querySelectorAll('.cell').forEach(cell => {
+                const targetRow = parseInt(cell.dataset.row);
+                const targetCol = parseInt(cell.dataset.col);
+                if (isValidMove(row, col, targetRow, targetCol)) {
+                    cell.classList.add('valid');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
