@@ -118,6 +118,18 @@
             }
         }
 
+
+        async function joinGame() {
+  try {
+    // تسجيل الدخول كمستخدم مجهول
+    await firebase.auth().signInAnonymously();
+    
+    // ... باقي الكود ...
+  } catch (error) {
+    alert(`خطأ: ${error.message}`);
+  }
+}
+        
         async function handleClick(row, col) {
             if (!playerColor || playerColor !== gameRef.currentPlayer) {
                 alert("انتظر دورك!");
